@@ -287,8 +287,17 @@
     </div>
 
     <div class="postcard" id="svgCard">
-      <div class="panel-title">SVG 矢量化 <span style="color:var(--muted);font-weight:400;font-size:12px;">— 把抠图转成矢量轮廓，PPT 中可无限放大（适合线条图、图标、剪影）</span></div>
+      <div class="panel-title">SVG 矢量化 <span style="color:var(--muted);font-weight:400;font-size:12px;">— 把抠图转成矢量图，PPT 中可无限放大（适合线条图、图标、剪影）</span></div>
       <div class="post-options">
+        <div class="post-opt">
+          <label for="svgModeType">类型：</label>
+          <select id="svgModeType">
+            <option value="color">彩色</option>
+            <option value="silhouette">剪影（单色）</option>
+          </select>
+        </div>
+      </div>
+      <div class="post-options" id="svgSilhouetteOpts" style="display:none;">
         <div class="post-opt">
           <label for="svgMode">主体：</label>
           <select id="svgMode">
@@ -311,6 +320,14 @@
           <label for="svgFill">填充色：</label>
           <input type="color" id="svgFill" value="#000000" style="width:36px;height:30px;border:none;padding:0;cursor:pointer;">
         </div>
+      </div>
+      <div class="post-options" id="svgColorOpts">
+        <div class="post-opt">
+          <label for="svgColors">颜色数：</label>
+          <input type="range" id="svgColors" min="4" max="32" value="12" style="width:110px;">
+          <span id="svgColorsVal" style="color:var(--muted);font-size:12px;">12</span>
+        </div>
+        <div class="post-opt" style="color:var(--muted);font-size:12.5px;">颜色越多细节越多，但文件更大；适合图标/插画时建议 8–16</div>
       </div>
       <div class="frame checker svg-frame" id="svgFrame" style="margin-top:12px;"></div>
       <div style="margin-top:12px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
@@ -385,6 +402,11 @@ const svgCard = document.getElementById("svgCard");
 const svgFrame = document.getElementById("svgFrame");
 const svgStatus = document.getElementById("svgStatus");
 const svgMode = document.getElementById("svgMode");
+const svgModeType = document.getElementById("svgModeType");
+const svgSilhouetteOpts = document.getElementById("svgSilhouetteOpts");
+const svgColorOpts = document.getElementById("svgColorOpts");
+const svgColors = document.getElementById("svgColors");
+const svgColorsVal = document.getElementById("svgColorsVal");
 const svgThreshold = document.getElementById("svgThreshold");
 const svgThresholdVal = document.getElementById("svgThresholdVal");
 const svgTurd = document.getElementById("svgTurd");
@@ -1110,16 +1132,19 @@ async function generateSvg(item) {
   svgStatus.textContent = "正在矢量化…";
   svgFrame.innerHTML = "";
   try {
-    const svg = await traceSvg(item, {
-      blackOnWhite: svgMode.value === "dark" ? true : svgMode.value === "light" ? false : null,
-      threshold: parseInt(svgThreshold.value),
-      turdSize: parseInt(svgTurd.value),
-      fill: svgFill.value
-    });
+    const color = svgModeType.value === "color";
+    const svg = color
+      ? await traceColorSvg(item, { colors: parseInt(svgColors.value) })
+      : await traceSvg(item, {
+          blackOnWhite: svgMode.value === "dark" ? true : svgMode.value === "light" ? false : null,
+          threshold: parseInt(svgThreshold.value),
+          turdSize: parseInt(svgTurd.value),
+          fill: svgFill.value
+        });
     item.svg = svg;
     svgFrame.innerHTML = svg;
     const paths = (svg.match(/<path/g) || []).length;
-    svgStatus.textContent = paths ? "已生成 " + paths + " 个路径，矢量图可无限放大。" : "未检测到主体，请调整阈值或主体模式。";
+    svgStatus.textContent = paths ? "已生成 " + paths + " 个路径，矢量图可无限放大。" : "未检测到主体，请调整参数。";
     svgStatus.className = "status " + (paths ? "ok" : "error");
   } catch (e) {
     console.error(e);
@@ -1132,16 +1157,10 @@ async function generateSvg(item) {
 }
 
 async function traceSvg(item, opts) {
-  const img = await loadImage(item.resultBlob);
-  const iw = img.naturalWidth, ih = img.naturalHeight;
-  const scale = Math.min(1, 1000 / Math.max(iw, ih));
-  const w = Math.max(1, Math.round(iw * scale));
-  const h = Math.max(1, Math.round(ih * scale));
-  const c = el("canvas");
-  c.width = w; c.height = h;
+  const c = await getTraceCanvas(item);
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0, w, h);
-  const imgData = ctx.getImageData(0, 0, w, h);
+  const imgData = ctx.getImageData(0, 0, c.width, c.height);
+  const w = c.width, h = c.height;
 
   let blackOnWhite = opts.blackOnWhite;
   if (blackOnWhite === null) {
@@ -1166,6 +1185,52 @@ async function traceSvg(item, opts) {
   return p.getSVG();
 }
 
+function getTraceCanvas(item) {
+  return loadImage(item.resultBlob).then((img) => {
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const scale = Math.min(1, 1000 / Math.max(iw, ih));
+    const w = Math.max(1, Math.round(iw * scale));
+    const h = Math.max(1, Math.round(ih * scale));
+    const c = el("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    return c;
+  });
+}
+
+async function traceColorSvg(item, opts) {
+  const c = await getTraceCanvas(item);
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  const imgData = ctx.getImageData(0, 0, c.width, c.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 16) {
+      d[i] = 255; d[i + 1] = 0; d[i + 2] = 255; d[i + 3] = 255;
+    } else {
+      d[i + 3] = 255;
+    }
+  }
+  const ImageTracer = (await import("https://esm.sh/imagetracerjs@1.2.6")).default;
+  const tOpts = {
+    colorsampling: 2, numberofcolors: opts.colors, colorquantcycles: 3,
+    pathomit: 4, ltres: 1, qtres: 1, strokewidth: 1,
+    rightangleenhance: true, roundcoords: 1, scale: 1
+  };
+  const td = ImageTracer.imagedataToTracedata(imgData, tOpts);
+  let bg = -1, bgD = Infinity;
+  for (let i = 0; i < td.palette.length; i++) {
+    const p = td.palette[i];
+    const dist = (p.r - 255) ** 2 + p.g ** 2 + (p.b - 255) ** 2;
+    if (dist < bgD) { bgD = dist; bg = i; }
+  }
+  if (bg >= 0) {
+    td.layers.splice(bg, 1);
+    td.palette.splice(bg, 1);
+  }
+  return ImageTracer.getsvgstring(td, tOpts);
+}
+
 svgThreshold.addEventListener("input", () => {
   svgThresholdVal.textContent = svgThreshold.value;
   scheduleSvg();
@@ -1174,8 +1239,18 @@ svgTurd.addEventListener("input", () => {
   svgTurdVal.textContent = svgTurd.value;
   scheduleSvg();
 });
+svgColors.addEventListener("input", () => {
+  svgColorsVal.textContent = svgColors.value;
+  scheduleSvg();
+});
 svgMode.addEventListener("change", scheduleSvg);
 svgFill.addEventListener("input", scheduleSvg);
+svgModeType.addEventListener("change", () => {
+  const color = svgModeType.value === "color";
+  svgSilhouetteOpts.style.display = color ? "none" : "flex";
+  svgColorOpts.style.display = color ? "flex" : "none";
+  scheduleSvg();
+});
 
 btnDownloadSvg.onclick = () => {
   const item = cur();
