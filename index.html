@@ -357,10 +357,10 @@
       <div class="post-options" id="svgColorOpts">
         <div class="post-opt">
           <label for="svgColors">颜色数：</label>
-          <input type="range" id="svgColors" min="4" max="32" value="12" style="width:110px;">
-          <span id="svgColorsVal" style="color:var(--muted);font-size:12px;">12</span>
+          <input type="range" id="svgColors" min="4" max="32" value="18" style="width:110px;">
+          <span id="svgColorsVal" style="color:var(--muted);font-size:12px;">18</span>
         </div>
-        <div class="post-opt" style="color:var(--muted);font-size:12.5px;">颜色越多细节越多，但文件更大；适合图标/插画时建议 8–16</div>
+        <div class="post-opt" style="color:var(--muted);font-size:12.5px;">颜色越多细节越多，但文件更大；水彩或科研插画建议 16–24</div>
       </div>
       <div class="frame checker svg-frame" id="svgFrame" style="margin-top:12px;"></div>
       <div style="margin-top:12px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
@@ -1372,7 +1372,8 @@ function getTraceCanvas(item) {
 async function traceColorSvg(item, opts) {
   const c = await getTraceCanvas(item);
   const PAD = 12;
-  const CUT = 96;
+  // 去背景后，浅蓝等淡色细节常带有低透明度；阈值过高会把它们误判为背景。
+  const CUT = 16;
   const cctx = c.getContext("2d", { willReadFrequently: true });
   const srcData = cctx.getImageData(0, 0, c.width, c.height);
   const sd = srcData.data;
