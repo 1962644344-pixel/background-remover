@@ -210,6 +210,14 @@
         </label>
         <span id="gpuHint" style="color:var(--muted);font-size:13px;">（不可用时自动回退到 CPU）</span>
       </div>
+      <div class="opt">
+        <label for="protectLightToggle">白色主体保护：</label>
+        <label class="switch">
+          <input type="checkbox" id="protectLightToggle" checked aria-describedby="protectLightHint">
+          <span class="slider"></span>
+        </label>
+        <span id="protectLightHint" style="color:var(--muted);font-size:13px;">（适合科研插画；会填补主体内部被误删的浅色区域）</span>
+      </div>
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="btnReset" style="display:none;">清空列表</button>
     </div>
@@ -395,6 +403,7 @@ const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const modelSel = document.getElementById("modelSel");
 const gpuToggle = document.getElementById("gpuToggle");
+const protectLightToggle = document.getElementById("protectLightToggle");
 const btnReset = document.getElementById("btnReset");
 const queueEl = document.getElementById("queue");
 const queueList = document.getElementById("queueList");
@@ -938,6 +947,10 @@ async function processItem(item, inputBlob) {
       result = await tryRun("cpu");
     }
     if (cancelRequested) throw createCancellationError();
+    if (protectLightToggle.checked) {
+      setStatus("正在保护主体内部的浅色区域…");
+      result = await protectEnclosedLightAreas(inputBlob, result);
+    }
     item.resultBlob = result;
     item.status = "done";
     renderQueue();
@@ -948,6 +961,53 @@ async function processItem(item, inputBlob) {
   } finally {
     if (activeAbortController === controller) activeAbortController = null;
   }
+}
+
+async function protectEnclosedLightAreas(inputBlob, resultBlob) {
+  const resultImg = await loadImage(resultBlob);
+  const w = resultImg.naturalWidth, h = resultImg.naturalHeight;
+  const pixels = w * h;
+  if (!w || !h || pixels > 12_000_000) return resultBlob;
+
+  const sourceImg = await loadImage(inputBlob);
+  const source = el("canvas");
+  source.width = w; source.height = h;
+  source.getContext("2d", { willReadFrequently: true }).drawImage(sourceImg, 0, 0, w, h);
+  const canvas = el("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(resultImg, 0, 0);
+  const resultData = ctx.getImageData(0, 0, w, h);
+  const sourceData = source.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h);
+  const d = resultData.data, src = sourceData.data;
+  const visited = new Uint8Array(pixels);
+  const queue = new Int32Array(pixels);
+  const lowAlpha = 180;
+  let head = 0, tail = 0;
+  const seed = (i) => {
+    if (!visited[i] && d[i * 4 + 3] <= lowAlpha) {
+      visited[i] = 1;
+      queue[tail++] = i;
+    }
+  };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 1; y < h - 1; y++) { seed(y * w); seed(y * w + w - 1); }
+  while (head < tail) {
+    const i = queue[head++];
+    const x = i % w;
+    if (x > 0) seed(i - 1);
+    if (x < w - 1) seed(i + 1);
+    if (i >= w) seed(i - w);
+    if (i < pixels - w) seed(i + w);
+  }
+  for (let i = 0; i < pixels; i++) {
+    if (d[i * 4 + 3] <= lowAlpha && !visited[i]) {
+      const p = i * 4;
+      d[p] = src[p]; d[p + 1] = src[p + 1]; d[p + 2] = src[p + 2]; d[p + 3] = 255;
+    }
+  }
+  ctx.putImageData(resultData, 0, 0);
+  return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
 async function startCurrent() {
