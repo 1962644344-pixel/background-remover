@@ -1209,11 +1209,27 @@ function getTraceCanvas(item) {
 
 async function traceColorSvg(item, opts) {
   const c = await getTraceCanvas(item);
-  const ctx = c.getContext("2d", { willReadFrequently: true });
-  const imgData = ctx.getImageData(0, 0, c.width, c.height);
+  const PAD = 12;
+  const CUT = 96;
+  const cctx = c.getContext("2d", { willReadFrequently: true });
+  const srcData = cctx.getImageData(0, 0, c.width, c.height);
+  const sd = srcData.data;
+  for (let i = 0; i < sd.length; i += 4) {
+    sd[i + 3] = sd[i + 3] >= CUT ? 255 : 0;
+  }
+  cctx.putImageData(srcData, 0, 0);
+
+  const padded = el("canvas");
+  padded.width = c.width + PAD * 2;
+  padded.height = c.height + PAD * 2;
+  const pctx = padded.getContext("2d", { willReadFrequently: true });
+  pctx.fillStyle = "#ff00ff";
+  pctx.fillRect(0, 0, padded.width, padded.height);
+  pctx.drawImage(c, PAD, PAD);
+  const imgData = pctx.getImageData(0, 0, padded.width, padded.height);
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] < 16) {
+    if (d[i + 3] < 8) {
       d[i] = 255; d[i + 1] = 0; d[i + 2] = 255; d[i + 3] = 255;
     } else {
       d[i + 3] = 255;
