@@ -356,11 +356,11 @@
       </div>
       <div class="post-options" id="svgColorOpts">
         <div class="post-opt">
-          <label for="svgColors">颜色数：</label>
-          <input type="range" id="svgColors" min="4" max="32" value="18" style="width:110px;">
-          <span id="svgColorsVal" style="color:var(--muted);font-size:12px;">18</span>
+          <label for="svgColors">色彩精度：</label>
+          <input type="range" id="svgColors" min="4" max="8" value="7" style="width:110px;">
+          <span id="svgColorsVal" style="color:var(--muted);font-size:12px;">7</span>
         </div>
-        <div class="post-opt" style="color:var(--muted);font-size:12.5px;">颜色越多细节越多，但文件更大；水彩或科研插画建议 16–24</div>
+        <div class="post-opt" style="color:var(--muted);font-size:12.5px;">精度越高细节越多，但文件更大；水彩或科研插画建议 6–8</div>
       </div>
       <div class="frame checker svg-frame" id="svgFrame" style="margin-top:12px;"></div>
       <div style="margin-top:12px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
@@ -1302,7 +1302,7 @@ async function generateSvg(item) {
   try {
     const color = svgModeType.value === "color";
     const svg = color
-      ? await traceColorSvg(item, { colors: parseInt(svgColors.value) })
+      ? await traceColorSvg(item, { colorPrecision: parseInt(svgColors.value) })
       : await traceSvg(item, {
           blackOnWhite: svgMode.value === "dark" ? true : svgMode.value === "light" ? false : null,
           threshold: parseInt(svgThreshold.value),
@@ -1371,7 +1371,6 @@ function getTraceCanvas(item) {
 
 async function traceColorSvg(item, opts) {
   const c = await getTraceCanvas(item);
-  const PAD = 12;
   // 先清除低透明度的毛边；接近白色的半透明残留再严格一些，彩色细节仍会保留。
   const CUT = 48;
   const PALE_CUT = 96;
@@ -1386,40 +1385,60 @@ async function traceColorSvg(item, opts) {
   }
   cctx.putImageData(srcData, 0, 0);
 
-  const padded = el("canvas");
-  padded.width = c.width + PAD * 2;
-  padded.height = c.height + PAD * 2;
-  const pctx = padded.getContext("2d", { willReadFrequently: true });
-  pctx.fillStyle = "#ff00ff";
-  pctx.fillRect(0, 0, padded.width, padded.height);
-  pctx.drawImage(c, PAD, PAD);
-  const imgData = pctx.getImageData(0, 0, padded.width, padded.height);
-  const d = imgData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] < 8) {
-      d[i] = 255; d[i + 1] = 0; d[i + 2] = 255; d[i + 3] = 255;
-    } else {
-      d[i + 3] = 255;
-    }
+  const VTracer = await loadVTracer();
+  const uid = "vtracer-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+  const stage = el("div", { style: "position:fixed;left:-9999px;top:-9999px;visibility:hidden;pointer-events:none;" });
+  const canvas = el("canvas", { id: uid + "-canvas" });
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.id = uid + "-svg";
+  canvas.width = c.width; canvas.height = c.height;
+  canvas.getContext("2d").drawImage(c, 0, 0);
+  stage.append(canvas, svg);
+  document.body.appendChild(stage);
+
+  let converter;
+  try {
+    converter = VTracer.ColorImageConverter.new_with_string(JSON.stringify({
+      canvas_id: canvas.id,
+      svg_id: svg.id,
+      mode: "spline",
+      clustering_mode: "color",
+      hierarchical: "stacked",
+      filter_speckle: 16,
+      color_precision: 8 - opts.colorPrecision,
+      layer_difference: 20,
+      corner_threshold: Math.PI / 3,
+      length_threshold: 4,
+      max_iterations: 10,
+      splice_threshold: Math.PI / 4,
+      path_precision: 3
+    }));
+    converter.init();
+    await new Promise((resolve, reject) => {
+      const tick = () => {
+        try {
+          const started = performance.now();
+          let done = false;
+          while (!(done = converter.tick()) && performance.now() - started < 16) {}
+          if (done) resolve(); else setTimeout(tick, 0);
+        } catch (e) { reject(e); }
+      };
+      setTimeout(tick, 0);
+    });
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${c.width} ${c.height}">${svg.innerHTML}</svg>`;
+  } finally {
+    if (converter) converter.free();
+    stage.remove();
   }
-  const ImageTracer = (await import("https://esm.sh/imagetracerjs@1.2.6")).default;
-  const tOpts = {
-    colorsampling: 2, numberofcolors: opts.colors, colorquantcycles: 3,
-    pathomit: 4, ltres: 1, qtres: 1, strokewidth: 1,
-    rightangleenhance: true, roundcoords: 1, scale: 1, viewbox: true
-  };
-  const td = ImageTracer.imagedataToTracedata(imgData, tOpts);
-  let bg = -1, bgD = Infinity;
-  for (let i = 0; i < td.palette.length; i++) {
-    const p = td.palette[i];
-    const dist = (p.r - 255) ** 2 + p.g ** 2 + (p.b - 255) ** 2;
-    if (dist < bgD) { bgD = dist; bg = i; }
+}
+
+let vtracerModulePromise = null;
+async function loadVTracer() {
+  if (!vtracerModulePromise) {
+    vtracerModulePromise = import("https://cdn.jsdelivr.net/npm/svgit4me@1.0.7/wasm/vtracer_webapp.js")
+      .then(async (module) => { await module.default(); return module; });
   }
-  if (bg >= 0) {
-    td.layers.splice(bg, 1);
-    td.palette.splice(bg, 1);
-  }
-  return ImageTracer.getsvgstring(td, tOpts);
+  return vtracerModulePromise;
 }
 
 svgThreshold.addEventListener("input", () => {
