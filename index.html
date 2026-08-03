@@ -1372,13 +1372,17 @@ function getTraceCanvas(item) {
 async function traceColorSvg(item, opts) {
   const c = await getTraceCanvas(item);
   const PAD = 12;
-  // 去背景后，浅蓝等淡色细节常带有低透明度；阈值过高会把它们误判为背景。
-  const CUT = 16;
+  // 先清除低透明度的毛边；接近白色的半透明残留再严格一些，彩色细节仍会保留。
+  const CUT = 48;
+  const PALE_CUT = 96;
   const cctx = c.getContext("2d", { willReadFrequently: true });
   const srcData = cctx.getImageData(0, 0, c.width, c.height);
   const sd = srcData.data;
   for (let i = 0; i < sd.length; i += 4) {
-    sd[i + 3] = sd[i + 3] >= CUT ? 255 : 0;
+    const max = Math.max(sd[i], sd[i + 1], sd[i + 2]);
+    const min = Math.min(sd[i], sd[i + 1], sd[i + 2]);
+    const pale = min > 220 && max - min < 36;
+    sd[i + 3] = sd[i + 3] >= CUT && !(pale && sd[i + 3] < PALE_CUT) ? 255 : 0;
   }
   cctx.putImageData(srcData, 0, 0);
 
