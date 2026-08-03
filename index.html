@@ -111,6 +111,12 @@
   }
   .actions { display: none; gap: 12px; margin-top: 20px; justify-content: center; }
   .actions.show { display: flex; flex-wrap: wrap; }
+  .postcard { display: none; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .postcard.show { display: block; }
+  .postcard .title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .post-options { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+  .post-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .post-opt label { color: var(--muted); }
   button.btn {
     border: none; padding: 11px 22px; border-radius: 10px; cursor: pointer; font-weight: 600;
   }
@@ -197,6 +203,36 @@
       <button class="btn btn-ghost" id="btnEdit" style="display:none;">手动编辑</button>
     </div>
 
+    <div class="postcard" id="postcard">
+      <div class="title">后处理</div>
+      <div class="post-options">
+        <div class="post-opt">
+          <label for="exportSizeSel">导出尺寸（长边）：</label>
+          <select id="exportSizeSel">
+            <option value="original" selected>原尺寸</option>
+            <option value="1024">1024 px</option>
+            <option value="2048">2048 px</option>
+            <option value="4096">4096 px</option>
+          </select>
+        </div>
+        <div class="post-opt">
+          <label for="featherSel">边缘羽化：</label>
+          <input type="range" id="featherSel" min="0" max="5" value="0" style="width:100px;">
+          <span id="featherVal" style="color:var(--muted);font-size:13px;">0 px</span>
+        </div>
+        <div class="post-opt">
+          <label for="bgSel">背景：</label>
+          <select id="bgSel">
+            <option value="transparent" selected>透明</option>
+            <option value="white">白色</option>
+            <option value="gray">浅灰</option>
+            <option value="custom">自定义</option>
+          </select>
+          <input type="color" id="bgColor" value="#ffffff" style="display:none;width:36px;height:30px;border:none;padding:0;cursor:pointer;">
+        </div>
+      </div>
+    </div>
+
     <ul class="note">
       <li><strong>首次使用：</strong>需联网下载模型文件（约 40–80 MB），下载后浏览器会自动缓存，之后可离线重复使用。</li>
       <li><strong>分辨率：</strong>输出图片保持原图尺寸；建议先截图再上传，主体清晰、背景与主体反差越大效果越好。</li>
@@ -230,9 +266,16 @@ const brushSize = document.getElementById("brushSize");
 const editToolbar = document.getElementById("editToolbar");
 const btnModeRestore = document.getElementById("btnModeRestore");
 const btnModeErase = document.getElementById("btnModeErase");
+const postcard = document.getElementById("postcard");
+const exportSizeSel = document.getElementById("exportSizeSel");
+const featherSel = document.getElementById("featherSel");
+const featherVal = document.getElementById("featherVal");
+const bgSel = document.getElementById("bgSel");
+const bgColor = document.getElementById("bgColor");
 
 let originalUrl = null;
 let resultUrl = null;
+let resultBlob = null;
 let currentName = "";
 let busy = false;
 let editingCanvas = null;
@@ -266,6 +309,7 @@ function resetUI() {
   frameAfter.innerHTML = "";
   previewEl.classList.remove("show");
   actionsEl.classList.remove("show");
+  postcard.classList.remove("show");
   progressWrap.classList.remove("show");
   btnReset.style.display = "none";
   statusEl.textContent = "";
@@ -273,6 +317,7 @@ function resetUI() {
   if (resultUrl) URL.revokeObjectURL(resultUrl);
   originalUrl = null;
   resultUrl = null;
+  resultBlob = null;
 }
 
 function handleFile(file) {
@@ -338,8 +383,8 @@ async function processImage(blob) {
       result = await tryRun("cpu");
       if (!gpuToggle.checked) setStatus("已使用 CPU 计算。", false);
     }
-    resultUrl = URL.createObjectURL(result);
-    frameAfter.appendChild(el("img", { src: resultUrl }));
+    resultBlob = result;
+    renderResult();
     btnDownload.onclick = () => {
       const a = el("a", { href: resultUrl, download: currentName + "_去背景.png" });
       document.body.appendChild(a);
@@ -348,6 +393,7 @@ async function processImage(blob) {
     };
     btnEdit.style.display = "inline-block";
     btnEdit.onclick = startEdit;
+    postcard.classList.add("show");
     actionsEl.classList.add("show");
     setProgress(100, "处理完成");
     setStatus("处理完成！点击下方按钮下载或手动编辑。", false);
@@ -371,10 +417,10 @@ fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
 );
 dropzone.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
 
-function startEdit() {
-  const afterImg = frameAfter.querySelector("img");
+async function startEdit() {
   const beforeImg = frameBefore.querySelector("img");
-  if (!afterImg || !beforeImg) return;
+  if (!resultBlob || !beforeImg) return;
+  const afterImg = await loadImage(resultBlob);
 
   editingCanvas = el("canvas");
   editingCanvas.width = afterImg.naturalWidth;
@@ -453,11 +499,8 @@ function finishEdit() {
   if (!editingCanvas) return;
 
   editingCanvas.toBlob((blob) => {
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
-    resultUrl = URL.createObjectURL(blob);
-
+    resultBlob = blob;
     editingCanvas.remove();
-    frameAfter.appendChild(el("img", { src: resultUrl }));
     frameAfter.classList.remove("editing");
     editToolbar.classList.remove("show");
     btnDownload.style.display = "inline-block";
@@ -468,8 +511,98 @@ function finishEdit() {
     sourceCtx = null;
     lastImageData = null;
     brushMode = "restore";
+    renderResult();
   }, "image/png");
 }
+
+function loadImage(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function applyAlphaBlur(ctx, w, h, radius) {
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+  const n = w * h;
+  const alpha = new Float32Array(n);
+  for (let i = 0; i < n; i++) alpha[i] = d[i * 4 + 3];
+  const tmp = new Float32Array(n);
+  const r = radius;
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let sum = 0;
+    for (let x = -r; x <= r; x++) sum += alpha[row + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) {
+      tmp[row + x] = sum / (2 * r + 1);
+      sum += alpha[row + Math.min(w - 1, x + r + 1)] - alpha[row + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -r; y <= r; y++) sum += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) {
+      alpha[y * w + x] = sum / (2 * r + 1);
+      sum += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+    }
+  }
+  for (let i = 0; i < n; i++) d[i * 4 + 3] = alpha[i];
+  ctx.putImageData(id, 0, 0);
+}
+
+async function renderResult() {
+  if (!resultBlob || editingCanvas) return;
+  const img = await loadImage(resultBlob);
+  const longEdge = exportSizeSel.value === "original" ? Math.max(img.naturalWidth, img.naturalHeight) : parseInt(exportSizeSel.value);
+  const scale = Math.min(1, longEdge / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+  let canvas = el("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const feather = parseInt(featherSel.value);
+  if (feather > 0) applyAlphaBlur(ctx, w, h, feather);
+
+  const bg = bgSel.value;
+  if (bg !== "transparent") {
+    const bgc = bg === "white" ? "#ffffff" : bg === "gray" ? "#e9ecef" : bgColor.value;
+    const out = el("canvas");
+    out.width = w;
+    out.height = h;
+    const octx = out.getContext("2d");
+    octx.fillStyle = bgc;
+    octx.fillRect(0, 0, w, h);
+    octx.drawImage(canvas, 0, 0);
+    canvas = out;
+  }
+
+  canvas.toBlob((blob) => {
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    resultUrl = URL.createObjectURL(blob);
+    const old = frameAfter.querySelector("img");
+    if (old) old.remove();
+    frameAfter.appendChild(el("img", { src: resultUrl }));
+  }, "image/png");
+}
+
+featherSel.addEventListener("input", () => {
+  featherVal.textContent = featherSel.value + " px";
+  renderResult();
+});
+exportSizeSel.addEventListener("change", renderResult);
+bgSel.addEventListener("change", () => {
+  bgColor.style.display = bgSel.value === "custom" ? "inline-block" : "none";
+  renderResult();
+});
+bgColor.addEventListener("input", renderResult);
 </script>
 </body>
 </html>
