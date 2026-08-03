@@ -364,8 +364,10 @@
       </div>
       <div class="frame checker svg-frame" id="svgFrame" style="margin-top:12px;"></div>
       <div style="margin-top:12px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="btnFixSvg">修复误删区域</button>
         <button class="btn btn-primary" id="btnDownloadSvg">下载 SVG</button>
       </div>
+      <div style="color:var(--muted);font-size:12.5px;text-align:center;margin-top:10px;">发现透明洞或误删内容？先修复 PNG，再重新生成 SVG。</div>
       <div class="status" id="svgStatus" role="status" aria-live="polite"></div>
     </div>
 
@@ -442,6 +444,7 @@ const svgTurd = document.getElementById("svgTurd");
 const svgTurdVal = document.getElementById("svgTurdVal");
 const svgFill = document.getElementById("svgFill");
 const btnSvg = document.getElementById("btnSvg");
+const btnFixSvg = document.getElementById("btnFixSvg");
 const btnDownloadSvg = document.getElementById("btnDownloadSvg");
 
 let items = [];
@@ -1283,6 +1286,7 @@ function clearSvg() {
 }
 
 btnSvg.onclick = () => { if (!busy && !svgGenBusy) generateSvg(cur()); };
+btnFixSvg.onclick = () => { if (!busy && !svgGenBusy) startEdit(); };
 
 function scheduleSvg() {
   const item = cur();
