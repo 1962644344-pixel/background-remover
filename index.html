@@ -142,6 +142,7 @@
   .actions.show { display: flex; }
   .postcard { display: none; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
   .postcard.show { display: block; }
+  .svg-frame svg { max-width: 100%; max-height: 440px; height: auto; display: block; }
   .post-options { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
   .post-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; }
   .post-opt label { color: var(--muted); }
@@ -285,9 +286,43 @@
       </div>
     </div>
 
+    <div class="postcard" id="svgCard">
+      <div class="panel-title">SVG 矢量化 <span style="color:var(--muted);font-weight:400;font-size:12px;">— 把抠图转成矢量轮廓，PPT 中可无限放大（适合线条图、图标、剪影）</span></div>
+      <div class="post-options">
+        <div class="post-opt">
+          <label for="svgMode">主体：</label>
+          <select id="svgMode">
+            <option value="auto" selected>自动</option>
+            <option value="dark">深色主体</option>
+            <option value="light">浅色主体</option>
+          </select>
+        </div>
+        <div class="post-opt">
+          <label for="svgThreshold">阈值：</label>
+          <input type="range" id="svgThreshold" min="0" max="255" value="128" style="width:110px;">
+          <span id="svgThresholdVal" style="color:var(--muted);font-size:12px;">128</span>
+        </div>
+        <div class="post-opt">
+          <label for="svgTurd">去噪：</label>
+          <input type="range" id="svgTurd" min="0" max="20" value="2" style="width:110px;">
+          <span id="svgTurdVal" style="color:var(--muted);font-size:12px;">2</span>
+        </div>
+        <div class="post-opt">
+          <label for="svgFill">填充色：</label>
+          <input type="color" id="svgFill" value="#000000" style="width:36px;height:30px;border:none;padding:0;cursor:pointer;">
+        </div>
+      </div>
+      <div class="frame checker svg-frame" id="svgFrame" style="margin-top:12px;"></div>
+      <div style="margin-top:12px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnDownloadSvg">下载 SVG</button>
+      </div>
+      <div class="status" id="svgStatus"></div>
+    </div>
+
     <div class="actions" id="actions">
       <button class="btn btn-primary" id="btnDownload">下载当前 PNG</button>
       <button class="btn btn-ghost" id="btnDownloadAll" style="display:none;">打包下载全部 (ZIP)</button>
+      <button class="btn btn-ghost" id="btnSvg" style="display:none;">转 SVG</button>
       <button class="btn btn-ghost" id="btnEdit" style="display:none;">手动编辑</button>
     </div>
 
@@ -346,6 +381,17 @@ const actionsEl = document.getElementById("actions");
 const btnDownload = document.getElementById("btnDownload");
 const btnDownloadAll = document.getElementById("btnDownloadAll");
 const btnEdit = document.getElementById("btnEdit");
+const svgCard = document.getElementById("svgCard");
+const svgFrame = document.getElementById("svgFrame");
+const svgStatus = document.getElementById("svgStatus");
+const svgMode = document.getElementById("svgMode");
+const svgThreshold = document.getElementById("svgThreshold");
+const svgThresholdVal = document.getElementById("svgThresholdVal");
+const svgTurd = document.getElementById("svgTurd");
+const svgTurdVal = document.getElementById("svgTurdVal");
+const svgFill = document.getElementById("svgFill");
+const btnSvg = document.getElementById("btnSvg");
+const btnDownloadSvg = document.getElementById("btnDownloadSvg");
 
 let items = [];
 let currentId = null;
@@ -400,6 +446,8 @@ function resetAll() {
   previewEl.classList.remove("show");
   actionsEl.classList.remove("show");
   postcard.classList.remove("show");
+  svgCard.classList.remove("show");
+  svgFrame.innerHTML = "";
   prePanel.classList.remove("show");
   preCanvasFrame.innerHTML = "";
   progressWrap.classList.remove("show");
@@ -478,7 +526,10 @@ function selectItem(id) {
   frameAfter.innerHTML = "";
   actionsEl.classList.remove("show");
   postcard.classList.remove("show");
+  svgCard.classList.remove("show");
+  svgFrame.innerHTML = "";
   btnEdit.style.display = "none";
+  btnSvg.style.display = "none";
   btnDownloadAll.style.display = items.some((i) => i.status === "done") ? "inline-block" : "none";
   if (currentUrl) URL.revokeObjectURL(currentUrl);
   currentUrl = null;
@@ -829,6 +880,9 @@ function showResultActions(item) {
   postcard.classList.add("show");
   actionsEl.classList.add("show");
   btnEdit.style.display = "inline-block";
+  btnSvg.style.display = "inline-block";
+  svgCard.classList.remove("show");
+  svgFrame.innerHTML = "";
   renderResult();
 }
 
@@ -925,6 +979,8 @@ bgColor.addEventListener("input", renderResult);
 async function startEdit() {
   const item = cur();
   if (!item || !item.resultBlob) return;
+  svgCard.classList.remove("show");
+  svgFrame.innerHTML = "";
   const beforeImg = frameBefore.querySelector("img");
   if (!beforeImg) return;
   const afterImg = await loadImage(item.resultBlob);
@@ -1026,9 +1082,112 @@ function finishEdit() {
     editingCanvas = null; editCtx = null; sourceCanvas = null; sourceCtx = null;
     undoStack = [];
     brushMode = "restore";
+    item.svg = null;
+    svgCard.classList.remove("show");
+    svgFrame.innerHTML = "";
     await renderResult();
   }, "image/png");
 }
+
+let svgGenBusy = false;
+let svgTimer = null;
+
+btnSvg.onclick = () => { if (!busy && !svgGenBusy) generateSvg(cur()); };
+
+function scheduleSvg() {
+  const item = cur();
+  if (!item || !svgCard.classList.contains("show")) return;
+  clearTimeout(svgTimer);
+  svgTimer = setTimeout(() => generateSvg(item), 250);
+}
+
+async function generateSvg(item) {
+  if (!item || !item.resultBlob || svgGenBusy) return;
+  svgGenBusy = true;
+  btnSvg.disabled = true;
+  svgCard.classList.add("show");
+  svgStatus.className = "status";
+  svgStatus.textContent = "正在矢量化…";
+  svgFrame.innerHTML = "";
+  try {
+    const svg = await traceSvg(item, {
+      blackOnWhite: svgMode.value === "dark" ? true : svgMode.value === "light" ? false : null,
+      threshold: parseInt(svgThreshold.value),
+      turdSize: parseInt(svgTurd.value),
+      fill: svgFill.value
+    });
+    item.svg = svg;
+    svgFrame.innerHTML = svg;
+    const paths = (svg.match(/<path/g) || []).length;
+    svgStatus.textContent = paths ? "已生成 " + paths + " 个路径，矢量图可无限放大。" : "未检测到主体，请调整阈值或主体模式。";
+    svgStatus.className = "status " + (paths ? "ok" : "error");
+  } catch (e) {
+    console.error(e);
+    svgStatus.className = "status error";
+    svgStatus.textContent = "矢量化失败：" + (e && e.message ? e.message : "未知错误");
+  } finally {
+    svgGenBusy = false;
+    btnSvg.disabled = false;
+  }
+}
+
+async function traceSvg(item, opts) {
+  const img = await loadImage(item.resultBlob);
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const scale = Math.min(1, 1000 / Math.max(iw, ih));
+  const w = Math.max(1, Math.round(iw * scale));
+  const h = Math.max(1, Math.round(ih * scale));
+  const c = el("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  const imgData = ctx.getImageData(0, 0, w, h);
+
+  let blackOnWhite = opts.blackOnWhite;
+  if (blackOnWhite === null) {
+    const d = imgData.data;
+    let lum = 0, cnt = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 16) {
+        lum += 0.2126 * d[i] + 0.7153 * d[i + 1] + 0.0721 * d[i + 2];
+        cnt++;
+      }
+    }
+    blackOnWhite = cnt ? (lum / cnt <= 150) : true;
+  }
+
+  const { Potrace } = await import("https://esm.sh/potrace@2.1.8");
+  const p = new Potrace({ blackOnWhite, threshold: opts.threshold, turdSize: opts.turdSize, optCurve: true, color: opts.fill });
+  const fake = {
+    bitmap: { width: w, height: h, data: imgData.data },
+    scan: (x0, y0, cw, ch, fn) => { for (let yy = 0; yy < ch; yy++) for (let xx = 0; xx < cw; xx++) fn(xx, yy, (yy * cw + xx) * 4); }
+  };
+  p._processLoadedImage(fake);
+  return p.getSVG();
+}
+
+svgThreshold.addEventListener("input", () => {
+  svgThresholdVal.textContent = svgThreshold.value;
+  scheduleSvg();
+});
+svgTurd.addEventListener("input", () => {
+  svgTurdVal.textContent = svgTurd.value;
+  scheduleSvg();
+});
+svgMode.addEventListener("change", scheduleSvg);
+svgFill.addEventListener("input", scheduleSvg);
+
+btnDownloadSvg.onclick = () => {
+  const item = cur();
+  if (!item || !item.svg) return;
+  const blob = new Blob([item.svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: item.name.replace(/\.[^.]+$/, "") + "_矢量.svg" });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
 
 btnDownloadAll.onclick = async () => {
   const done = items.filter((i) => i.status === "done");
