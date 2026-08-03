@@ -46,6 +46,7 @@
     background: #fafbff;
   }
   .dropzone:hover { border-color: var(--accent); background: #f3f6ff; }
+  .dropzone:focus-visible { outline: 3px solid rgba(79, 110, 247, .35); outline-offset: 3px; }
   .dropzone.dragover { border-color: var(--accent); background: #edf1ff; transform: scale(1.005); }
   .dropzone.busy { pointer-events: none; opacity: .6; }
   .dropzone .icon { font-size: 42px; margin-bottom: 10px; }
@@ -167,15 +168,15 @@
 <div class="container">
   <header>
     <h1>图片背景去除工具</h1>
-    <p>在浏览器本地运行 AI 模型去除图片背景，图片不会上传到任何服务器。<br>支持批量处理、预处理裁剪调整、手动编辑，输出可直接拖入 PPT / Illustrator / Visio 等矢量图中。</p>
+    <p>在浏览器本地运行 AI 模型去除图片背景，应用本身不会主动上传图片。<br>支持批量处理、预处理裁剪调整、手动编辑，输出可直接拖入 PPT / Illustrator / Visio 等矢量图中。</p>
   </header>
 
   <div class="card">
-    <div class="dropzone" id="dropzone">
+    <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="选择要去除背景的图片">
       <div class="icon">&#128444;&#65039;</div>
       <div class="hint"><strong>点击选择图片</strong> 或 将图片拖到此处</div>
       <div class="hint" style="margin-top:6px;font-size:12.5px;">支持 PNG / JPG / WEBP 等，可一次选择多张</div>
-      <input type="file" class="file-input" id="fileInput" accept="image/*" multiple>
+      <input type="file" class="file-input" id="fileInput" accept="image/*" multiple aria-label="选择图片文件">
     </div>
 
     <div class="options">
@@ -183,17 +184,17 @@
         <label for="modelSel">模型：</label>
         <select id="modelSel">
           <option value="isnet_quint8">快速（约 40 MB，可能残留背景）</option>
-          <option value="isnet" selected>最佳质量（约 80 MB，推荐）</option>
+          <option value="isnet" selected>最佳质量（约 176 MB，推荐）</option>
           <option value="isnet_fp16">高质量（约 80 MB，稍慢）</option>
         </select>
       </div>
       <div class="opt">
-        <label>GPU 加速：</label>
+        <label for="gpuToggle">GPU 加速：</label>
         <label class="switch">
-          <input type="checkbox" id="gpuToggle" checked>
+          <input type="checkbox" id="gpuToggle" checked aria-describedby="gpuHint">
           <span class="slider"></span>
         </label>
-        <span style="color:var(--muted);font-size:13px;">（不可用时自动回退到 CPU）</span>
+        <span id="gpuHint" style="color:var(--muted);font-size:13px;">（不可用时自动回退到 CPU）</span>
       </div>
       <div class="spacer"></div>
       <button class="btn btn-ghost" id="btnReset" style="display:none;">清空列表</button>
@@ -207,7 +208,7 @@
     <div class="progress-wrap" id="progressWrap">
       <div class="progress-meta"><span id="progressLabel">准备中…</span><span id="progressPct">0%</span></div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-      <div class="status" id="status"></div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
     </div>
 
     <div class="prepanel" id="prePanel">
@@ -333,7 +334,7 @@
       <div style="margin-top:12px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="btnDownloadSvg">下载 SVG</button>
       </div>
-      <div class="status" id="svgStatus"></div>
+      <div class="status" id="svgStatus" role="status" aria-live="polite"></div>
     </div>
 
     <div class="actions" id="actions">
@@ -344,9 +345,9 @@
     </div>
 
     <ul class="note">
-      <li><strong>首次使用：</strong>需联网下载模型文件（约 40–80 MB），下载后浏览器会自动缓存，之后可离线重复使用。</li>
+      <li><strong>首次使用：</strong>需联网下载模型和运行组件（约 50–210 MB，取决于模型），之后通常可通过浏览器缓存重复使用；缓存清除或首次使用 SVG 功能时可能需要重新联网。</li>
       <li><strong>流程：</strong>上传 → 预处理（可选）→ 去背景 → 后处理（尺寸/羽化/底色）→ 手动编辑 → 下载。</li>
-      <li><strong>数据安全：</strong>所有计算都在你的电脑上完成，图片不会离开本机。</li>
+      <li><strong>数据安全：</strong>图片处理在本地浏览器完成，应用本身不会主动上传图片；页面首次加载需要从第三方 CDN 获取代码和模型。</li>
     </ul>
   </div>
 </div>
@@ -418,7 +419,6 @@ const btnDownloadSvg = document.getElementById("btnDownloadSvg");
 let items = [];
 let currentId = null;
 let busy = false;
-let currentUrl = null;
 let resultUrl = null;
 
 let preCanvas = null;
@@ -459,10 +459,14 @@ function cur() {
 }
 
 function resetAll() {
+  for (const item of items) {
+    if (item.fileUrl) URL.revokeObjectURL(item.fileUrl);
+  }
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = null;
+
   items = [];
   currentId = null;
-  currentUrl = null;
-  resultUrl = null;
   frameBefore.innerHTML = "";
   frameAfter.innerHTML = "";
   previewEl.classList.remove("show");
@@ -481,8 +485,7 @@ function resetAll() {
   cropMode = false; dragStart = null;
   editingCanvas = null; sourceCanvas = null; editCtx = null; sourceCtx = null;
   undoStack = [];
-  if (currentUrl) URL.revokeObjectURL(currentUrl);
-  currentUrl = null;
+  fileInput.value = "";
 }
 
 function loadImage(blob) {
@@ -512,6 +515,7 @@ function handleFiles(fileList) {
       brightness: 0,
       crop: null,
       fileUrl: URL.createObjectURL(file),
+      inputBlob: null,
       resultBlob: null
     });
   });
@@ -527,7 +531,13 @@ function renderQueue() {
   items.forEach((item) => {
     const statusMap = { queued: "待处理", processing: "处理中…", done: "完成", error: "失败" };
     const q = el("div", { className: "q-item" + (item.id === currentId ? " active" : ""), onclick: () => selectItem(item.id) });
-    q.appendChild(el("img", { className: "thumb", src: item.fileUrl }));
+    q.setAttribute("role", "button");
+    q.setAttribute("tabindex", "0");
+    q.setAttribute("aria-label", item.name + "，状态：" + statusMap[item.status]);
+    q.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectItem(item.id); }
+    };
+    q.appendChild(el("img", { className: "thumb", src: item.fileUrl, alt: "原图缩略图：" + item.name }));
     const name = el("span", { className: "qname", textContent: item.name });
     const st = el("span", {
       className: "qstatus" + (item.status === "done" ? " ok" : item.status === "error" ? " err" : ""),
@@ -553,13 +563,11 @@ function selectItem(id) {
   btnEdit.style.display = "none";
   btnSvg.style.display = "none";
   btnDownloadAll.style.display = items.some((i) => i.status === "done") ? "inline-block" : "none";
-  if (currentUrl) URL.revokeObjectURL(currentUrl);
-  currentUrl = null;
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = null;
 
   if (!item) return;
-  currentUrl = item.fileUrl;
-  frameBefore.appendChild(el("img", { src: item.fileUrl }));
+  frameBefore.appendChild(el("img", { src: item.fileUrl, alt: "原图：" + item.name }));
   previewEl.classList.add("show");
 
   if (item.status === "queued") {
@@ -764,10 +772,13 @@ async function makeInputBlob(item) {
     applyAdjust(imgData, item.contrast, item.brightness);
     octx.putImageData(imgData, 0, 0);
   }
-  return await new Promise((res) => out.toBlob(res, "image/png"));
+  const blob = await new Promise((res) => out.toBlob(res, "image/png"));
+  item.inputBlob = blob;
+  return blob;
 }
 
 async function processItem(item, inputBlob) {
+  item.inputBlob = inputBlob;
   item.status = "processing";
   renderQueue();
   setProgress(0, "处理 " + item.name + " …");
@@ -858,6 +869,7 @@ async function startCurrentSkip(blob) {
   prePanel.classList.remove("show");
   progressWrap.classList.add("show");
   try {
+    item.inputBlob = blob;
     await processItem(item, blob);
   } catch (e) {
     item.status = "error";
@@ -879,6 +891,7 @@ btnAll.onclick = async () => {
   dropzone.classList.add("busy");
   prePanel.classList.remove("show");
   progressWrap.classList.add("show");
+  let failedCount = 0;
   for (const item of queued) {
     if (item.status !== "queued") continue;
     currentId = item.id;
@@ -888,13 +901,19 @@ btnAll.onclick = async () => {
       await processItem(item, blob);
     } catch (e) {
       item.status = "error";
+      failedCount++;
       renderQueue();
       console.error(e);
     }
   }
   busy = false;
   dropzone.classList.remove("busy");
-  setProgress(100, "全部处理完成");
+  const doneCount = items.filter((i) => i.status === "done").length;
+  setProgress(100, failedCount ? "处理完成（部分失败）" : "全部处理完成");
+  setStatus(
+    failedCount ? "已完成 " + doneCount + " 张，失败 " + failedCount + " 张。" : "全部处理完成，共 " + doneCount + " 张。",
+    failedCount ? "error" : "ok"
+  );
   if (currentId) selectItem(currentId);
 };
 
@@ -926,7 +945,7 @@ async function renderResult() {
   if (resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = URL.createObjectURL(blob);
   frameAfter.innerHTML = "";
-  frameAfter.appendChild(el("img", { src: resultUrl }));
+  frameAfter.appendChild(el("img", { src: resultUrl, alt: "去背景结果：" + item.name }));
 }
 
 async function exportBlob(item) {
@@ -1003,10 +1022,8 @@ async function startEdit() {
   if (!item || !item.resultBlob) return;
   svgCard.classList.remove("show");
   clearSvg();
-  const beforeImg = frameBefore.querySelector("img");
-  if (!beforeImg) return;
   const afterImg = await loadImage(item.resultBlob);
-  const srcImg = beforeImg.complete && beforeImg.naturalWidth > 0 ? beforeImg : await loadImage(item.file);
+  const srcImg = await loadImage(item.inputBlob || item.file);
 
   editingCanvas = el("canvas");
   editingCanvas.width = afterImg.naturalWidth;
@@ -1095,7 +1112,10 @@ function finishEdit() {
   if (!editingCanvas) return;
   editingCanvas.toBlob(async (blob) => {
     const item = cur();
-    if (item) item.resultBlob = blob;
+    if (item) {
+      item.resultBlob = blob;
+      item.svg = null;
+    }
     editingCanvas.remove();
     frameAfter.classList.remove("editing");
     editToolbar.classList.remove("show");
@@ -1104,7 +1124,6 @@ function finishEdit() {
     editingCanvas = null; editCtx = null; sourceCanvas = null; sourceCtx = null;
     undoStack = [];
     brushMode = "restore";
-    item.svg = null;
     svgCard.classList.remove("show");
     clearSvg();
     await renderResult();
@@ -1397,6 +1416,9 @@ function makeZip(files) {
 }
 
 dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
 fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
 
 ["dragenter", "dragover"].forEach((ev) =>
