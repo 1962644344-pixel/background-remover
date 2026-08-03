@@ -1190,6 +1190,7 @@ async function startEdit() {
   afterImg.remove();
   editingCanvas.style.maxWidth = "100%";
   editingCanvas.style.maxHeight = "440px";
+  frameAfter.innerHTML = "";
   frameAfter.appendChild(editingCanvas);
   frameAfter.classList.add("editing");
   editToolbar.classList.add("show");
