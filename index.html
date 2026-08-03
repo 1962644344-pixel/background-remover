@@ -469,7 +469,7 @@ function resetAll() {
   actionsEl.classList.remove("show");
   postcard.classList.remove("show");
   svgCard.classList.remove("show");
-  svgFrame.innerHTML = "";
+  clearSvg();
   prePanel.classList.remove("show");
   preCanvasFrame.innerHTML = "";
   progressWrap.classList.remove("show");
@@ -549,7 +549,7 @@ function selectItem(id) {
   actionsEl.classList.remove("show");
   postcard.classList.remove("show");
   svgCard.classList.remove("show");
-  svgFrame.innerHTML = "";
+  clearSvg();
   btnEdit.style.display = "none";
   btnSvg.style.display = "none";
   btnDownloadAll.style.display = items.some((i) => i.status === "done") ? "inline-block" : "none";
@@ -904,7 +904,7 @@ function showResultActions(item) {
   btnEdit.style.display = "inline-block";
   btnSvg.style.display = "inline-block";
   svgCard.classList.remove("show");
-  svgFrame.innerHTML = "";
+  clearSvg();
   renderResult();
 }
 
@@ -1002,7 +1002,7 @@ async function startEdit() {
   const item = cur();
   if (!item || !item.resultBlob) return;
   svgCard.classList.remove("show");
-  svgFrame.innerHTML = "";
+  clearSvg();
   const beforeImg = frameBefore.querySelector("img");
   if (!beforeImg) return;
   const afterImg = await loadImage(item.resultBlob);
@@ -1106,13 +1106,19 @@ function finishEdit() {
     brushMode = "restore";
     item.svg = null;
     svgCard.classList.remove("show");
-    svgFrame.innerHTML = "";
+    clearSvg();
     await renderResult();
   }, "image/png");
 }
 
 let svgGenBusy = false;
 let svgTimer = null;
+let svgImgUrl = null;
+
+function clearSvg() {
+  if (svgImgUrl) { URL.revokeObjectURL(svgImgUrl); svgImgUrl = null; }
+  svgFrame.innerHTML = "";
+}
 
 btnSvg.onclick = () => { if (!busy && !svgGenBusy) generateSvg(cur()); };
 
@@ -1130,7 +1136,7 @@ async function generateSvg(item) {
   svgCard.classList.add("show");
   svgStatus.className = "status";
   svgStatus.textContent = "正在矢量化…";
-  svgFrame.innerHTML = "";
+  clearSvg();
   try {
     const color = svgModeType.value === "color";
     const svg = color
@@ -1142,7 +1148,9 @@ async function generateSvg(item) {
           fill: svgFill.value
         });
     item.svg = svg;
-    svgFrame.innerHTML = svg;
+    clearSvg();
+    svgImgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    svgFrame.appendChild(el("img", { src: svgImgUrl, alt: "" }));
     const paths = (svg.match(/<path/g) || []).length;
     svgStatus.textContent = paths ? "已生成 " + paths + " 个路径，矢量图可无限放大。" : "未检测到主体，请调整参数。";
     svgStatus.className = "status " + (paths ? "ok" : "error");
@@ -1215,7 +1223,7 @@ async function traceColorSvg(item, opts) {
   const tOpts = {
     colorsampling: 2, numberofcolors: opts.colors, colorquantcycles: 3,
     pathomit: 4, ltres: 1, qtres: 1, strokewidth: 1,
-    rightangleenhance: true, roundcoords: 1, scale: 1
+    rightangleenhance: true, roundcoords: 1, scale: 1, viewbox: true
   };
   const td = ImageTracer.imagedataToTracedata(imgData, tOpts);
   let bg = -1, bgD = Infinity;
