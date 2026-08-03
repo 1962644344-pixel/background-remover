@@ -917,12 +917,7 @@ async function processItem(item, inputBlob) {
   };
 
   const tryRun = async (device) => {
-    const url = URL.createObjectURL(inputBlob);
-    try {
-      return await removeBackground(url, Object.assign({}, cfg, { device }));
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    return await removeBackground(inputBlob, Object.assign({}, cfg, { device }));
   };
 
   let result;
