@@ -360,6 +360,13 @@
           <input type="range" id="svgColors" min="4" max="8" value="7" style="width:110px;">
           <span id="svgColorsVal" style="color:var(--muted);font-size:12px;">7</span>
         </div>
+        <div class="post-opt">
+          <label for="svgDetail">细节：</label>
+          <select id="svgDetail">
+            <option value="faithful" selected>保真（推荐）</option>
+            <option value="balanced">平衡（文件更小）</option>
+          </select>
+        </div>
         <div class="post-opt" style="color:var(--muted);font-size:12.5px;">精度越高细节越多，但文件更大；水彩或科研插画建议 6–8</div>
       </div>
       <div class="frame checker svg-frame" id="svgFrame" style="margin-top:12px;"></div>
@@ -438,6 +445,7 @@ const svgSilhouetteOpts = document.getElementById("svgSilhouetteOpts");
 const svgColorOpts = document.getElementById("svgColorOpts");
 const svgColors = document.getElementById("svgColors");
 const svgColorsVal = document.getElementById("svgColorsVal");
+const svgDetail = document.getElementById("svgDetail");
 const svgThreshold = document.getElementById("svgThreshold");
 const svgThresholdVal = document.getElementById("svgThresholdVal");
 const svgTurd = document.getElementById("svgTurd");
@@ -1306,7 +1314,7 @@ async function generateSvg(item) {
   try {
     const color = svgModeType.value === "color";
     const svg = color
-      ? await traceColorSvg(item, { colorPrecision: parseInt(svgColors.value) })
+      ? await traceColorSvg(item, { colorPrecision: parseInt(svgColors.value), detail: svgDetail.value })
       : await traceSvg(item, {
           blackOnWhite: svgMode.value === "dark" ? true : svgMode.value === "light" ? false : null,
           threshold: parseInt(svgThreshold.value),
@@ -1402,15 +1410,16 @@ async function traceColorSvg(item, opts) {
 
   let converter;
   try {
+    const faithful = opts.detail === "faithful";
     converter = VTracer.ColorImageConverter.new_with_string(JSON.stringify({
       canvas_id: canvas.id,
       svg_id: svg.id,
       mode: "spline",
       clustering_mode: "color",
       hierarchical: "stacked",
-      filter_speckle: 16,
+      filter_speckle: faithful ? 0 : 16,
       color_precision: 8 - opts.colorPrecision,
-      layer_difference: 20,
+      layer_difference: faithful ? 8 : 20,
       corner_threshold: Math.PI / 3,
       length_threshold: 4,
       max_iterations: 10,
@@ -1457,6 +1466,7 @@ svgColors.addEventListener("input", () => {
   svgColorsVal.textContent = svgColors.value;
   scheduleSvg();
 });
+svgDetail.addEventListener("change", scheduleSvg);
 svgMode.addEventListener("change", scheduleSvg);
 svgFill.addEventListener("input", scheduleSvg);
 svgModeType.addEventListener("change", () => {
