@@ -322,6 +322,15 @@
             <option value="silhouette">剪影（单色）</option>
           </select>
         </div>
+        <div class="post-opt">
+          <label for="svgShape">导出形状：</label>
+          <select id="svgShape">
+            <option value="original" selected>原始矩形</option>
+            <option value="circle">圆形</option>
+            <option value="rounded">圆角矩形</option>
+            <option value="hexagon">六边形</option>
+          </select>
+        </div>
       </div>
       <div class="post-options" id="svgSilhouetteOpts" style="display:none;">
         <div class="post-opt">
@@ -434,6 +443,7 @@ const svgFrame = document.getElementById("svgFrame");
 const svgStatus = document.getElementById("svgStatus");
 const svgMode = document.getElementById("svgMode");
 const svgModeType = document.getElementById("svgModeType");
+const svgShape = document.getElementById("svgShape");
 const svgSilhouetteOpts = document.getElementById("svgSilhouetteOpts");
 const svgColorOpts = document.getElementById("svgColorOpts");
 const svgColors = document.getElementById("svgColors");
@@ -1302,7 +1312,7 @@ async function generateSvg(item) {
   clearSvg();
   try {
     const color = svgModeType.value === "color";
-    const svg = color
+    const rawSvg = color
       ? await traceColorSvg(item, { colorPrecision: parseInt(svgColors.value), detail: svgDetail.value })
       : await traceSvg(item, {
           blackOnWhite: svgMode.value === "dark" ? true : svgMode.value === "light" ? false : null,
@@ -1310,6 +1320,7 @@ async function generateSvg(item) {
           turdSize: parseInt(svgTurd.value),
           fill: svgFill.value
         });
+    const svg = applySvgShape(rawSvg, svgShape.value);
     item.svg = svg;
     clearSvg();
     svgImgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
@@ -1354,6 +1365,31 @@ async function traceSvg(item, opts) {
   };
   p._processLoadedImage(fake);
   return p.getSVG();
+}
+
+function applySvgShape(svg, shape) {
+  if (shape === "original") return svg;
+  const viewBox = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/i);
+  if (!viewBox) return svg;
+  const w = parseFloat(viewBox[1]), h = parseFloat(viewBox[2]);
+  const side = Math.min(w, h);
+  const cx = w / 2, cy = h / 2;
+  let clip;
+  if (shape === "circle") {
+    clip = `<circle cx="${cx}" cy="${cy}" r="${side / 2}"/>`;
+  } else if (shape === "rounded") {
+    clip = `<rect width="${w}" height="${h}" rx="${side * 0.12}"/>`;
+  } else {
+    const r = side / 2;
+    const points = Array.from({ length: 6 }, (_, i) => {
+      const a = Math.PI / 3 * i - Math.PI / 6;
+      return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
+    }).join(" ");
+    clip = `<polygon points="${points}"/>`;
+  }
+  const id = "export-clip";
+  return svg.replace(/(<svg\b[^>]*>)([\s\S]*)(<\/svg>)/i,
+    `$1<defs><clipPath id="${id}">${clip}</clipPath></defs><g clip-path="url(#${id})">$2</g>$3`);
 }
 
 function getTraceCanvas(item) {
@@ -1456,6 +1492,7 @@ svgColors.addEventListener("input", () => {
   scheduleSvg();
 });
 svgDetail.addEventListener("change", scheduleSvg);
+svgShape.addEventListener("change", scheduleSvg);
 svgMode.addEventListener("change", scheduleSvg);
 svgFill.addEventListener("input", scheduleSvg);
 svgModeType.addEventListener("change", () => {
