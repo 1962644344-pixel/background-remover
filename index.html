@@ -20,30 +20,41 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
-    background: var(--bg);
+    background:
+      radial-gradient(circle at 12% 0%, rgba(109, 139, 255, .18), transparent 32%),
+      radial-gradient(circle at 88% 12%, rgba(176, 132, 255, .12), transparent 28%),
+      var(--bg);
     color: var(--text);
     min-height: 100vh;
   }
-  .container { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
-  header { text-align: center; margin-bottom: 28px; }
-  header h1 { font-size: 26px; letter-spacing: .5px; }
-  header p { color: var(--muted); margin-top: 8px; font-size: 14px; line-height: 1.7; }
+  .container { max-width: 960px; margin: 0 auto; padding: 42px 20px 68px; }
+  header { text-align: center; margin-bottom: 30px; }
+  header::before {
+    content: "本地 AI · 无需上传图片";
+    display: inline-flex; align-items: center; min-height: 28px; padding: 5px 12px;
+    border: 1px solid #d9e1ff; border-radius: 999px; background: rgba(255,255,255,.72);
+    color: var(--accent-dark); font-size: 12px; font-weight: 700; letter-spacing: .2px;
+  }
+  header h1 { margin-top: 14px; font-size: clamp(28px, 4vw, 38px); letter-spacing: .5px; line-height: 1.2; }
+  header p { max-width: 650px; color: var(--muted); margin: 10px auto 0; font-size: 14px; line-height: 1.8; }
   .card {
-    background: var(--card);
+    background: rgba(255,255,255,.92);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 24px;
+    border-radius: 20px;
+    padding: 26px;
     margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(31, 36, 48, .05);
+    box-shadow: 0 18px 45px rgba(52, 66, 120, .10);
+    backdrop-filter: blur(8px);
   }
   .dropzone {
     border: 2px dashed #b9c3dd;
     border-radius: var(--radius);
-    padding: 44px 20px;
+    padding: 48px 20px;
     text-align: center;
     cursor: pointer;
     transition: all .18s ease;
-    background: #fafbff;
+    background: linear-gradient(145deg, #fbfcff, #f4f7ff);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.8);
   }
   .dropzone:hover { border-color: var(--accent); background: #f3f6ff; }
   .dropzone:focus-visible { outline: 3px solid rgba(79, 110, 247, .35); outline-offset: 3px; }
@@ -53,7 +64,9 @@
   .dropzone .hint { color: var(--muted); font-size: 14px; }
   .dropzone .hint strong { color: var(--accent); }
   .file-input { display: none; }
-  .options { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-top: 18px; }
+  .file-limit { margin-top: 10px; color: #8993aa; font-size: 12px; }
+  .file-limit.error { color: var(--danger); }
+  .options { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; margin-top: 18px; padding: 14px 16px; border: 1px solid #edf0f7; border-radius: 14px; background: #fafbff; }
   .opt { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
   .opt label { color: var(--muted); }
   select, button {
@@ -75,7 +88,7 @@
   .switch input:checked + .slider::before { transform: translateX(18px); }
   .progress-wrap { display: none; margin-top: 20px; }
   .progress-wrap.show { display: block; }
-  .progress-meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .progress-meta { display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
   .progress-bar { height: 10px; background: #e8ebf4; border-radius: 10px; overflow: hidden; }
   .progress-fill {
     height: 100%; width: 0%; border-radius: 10px;
@@ -139,17 +152,21 @@
   .edit-toolbar { display: none; gap: 10px; margin-top: 12px; justify-content: center; align-items: center; flex-wrap: wrap; }
   .edit-toolbar.show { display: flex; }
   .brush-size { width: 80px; height: 6px; }
-  .actions { display: none; gap: 12px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+  .actions { display: none; gap: 10px; margin-top: 24px; padding: 18px; border: 1px solid #dce4ff; border-radius: 16px; background: linear-gradient(135deg, #f5f7ff, #fbfcff); justify-content: flex-start; align-items: center; flex-wrap: wrap; }
   .actions.show { display: flex; }
+  .actions-title { flex: 1 0 100%; color: var(--text); font-size: 15px; font-weight: 750; }
+  .actions-hint { flex: 1 0 100%; margin-top: -4px; color: var(--muted); font-size: 12.5px; }
+  .edit-mode-badge { flex: 1 0 100%; color: var(--accent-dark); font-size: 13px; font-weight: 700; }
   .postcard { display: none; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
   .postcard.show { display: block; }
   .svg-frame svg { max-width: 100%; max-height: 440px; height: auto; display: block; }
   .post-options { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
   .post-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; }
   .post-opt label { color: var(--muted); }
-  button.btn { border: none; padding: 11px 22px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+  button.btn { border: none; padding: 11px 22px; border-radius: 10px; cursor: pointer; font-weight: 650; transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
+  button.btn:hover:not(:disabled) { transform: translateY(-1px); }
   .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:hover { background: var(--accent-dark); box-shadow: 0 7px 16px rgba(79, 110, 247, .22); }
   .btn-primary:disabled { background: #9fb0f5; cursor: not-allowed; }
   .btn-ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
   .btn-ghost:hover { background: #f4f6fb; }
@@ -160,7 +177,10 @@
   .spacer { flex: 1; }
   @media (max-width: 640px) {
     .preview { flex-direction: column; }
-    .container { padding: 20px 14px 40px; }
+    .container { padding: 24px 14px 46px; }
+    .card { padding: 18px; border-radius: 16px; }
+    .actions { padding: 15px; }
+    .actions .btn { flex: 1 1 calc(50% - 10px); }
   }
 </style>
 </head>
@@ -176,6 +196,7 @@
       <div class="icon">&#128444;&#65039;</div>
       <div class="hint"><strong>点击选择图片</strong> 或 将图片拖到此处</div>
       <div class="hint" style="margin-top:6px;font-size:12.5px;">支持 PNG / JPG / WEBP 等，可一次选择多张</div>
+      <div class="file-limit" id="fileLimit">建议单张不超过 50 MB、4000 万像素</div>
       <input type="file" class="file-input" id="fileInput" accept="image/*" multiple aria-label="选择图片文件">
     </div>
 
@@ -206,7 +227,7 @@
     </div>
 
     <div class="progress-wrap" id="progressWrap">
-      <div class="progress-meta"><span id="progressLabel">准备中…</span><span id="progressPct">0%</span></div>
+      <div class="progress-meta"><span id="progressLabel">准备中…</span><span><span id="progressPct">0%</span><button class="btn btn-ghost btn-small" id="btnCancel" style="display:none;">取消处理</button></span></div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
       <div class="status" id="status" role="status" aria-live="polite"></div>
     </div>
@@ -234,6 +255,7 @@
         <button class="btn btn-primary" id="btnStart">开始去背景</button>
         <button class="btn btn-ghost" id="btnSkip">直接去背景（跳过预处理）</button>
         <button class="btn btn-ghost" id="btnAll">全部处理</button>
+        <button class="btn btn-ghost" id="btnRetry" style="display:none;">重试当前图片</button>
       </div>
     </div>
 
@@ -246,6 +268,7 @@
         <h3>去背景后（透明）</h3>
         <div class="frame checker" id="frameAfter"></div>
         <div class="edit-toolbar" id="editToolbar">
+          <span class="edit-mode-badge">正在编辑透明结果</span>
           <label style="font-size:13px;">画笔模式：</label>
           <button class="btn btn-primary btn-small" id="btnModeRestore">恢复像素</button>
           <button class="btn btn-ghost btn-small" id="btnModeErase">擦除背景</button>
@@ -255,6 +278,15 @@
           <button class="btn btn-primary btn-small" id="btnFinishEdit">完成编辑</button>
         </div>
       </div>
+    </div>
+
+    <div class="actions" id="actions">
+      <div class="actions-title">处理完成，接下来可以：</div>
+      <div class="actions-hint">建议先检查透明边缘，再进行手动编辑或下载。</div>
+      <button class="btn btn-primary" id="btnEdit" style="display:none;">打开手动编辑</button>
+      <button class="btn btn-ghost" id="btnDownload">下载当前 PNG</button>
+      <button class="btn btn-ghost" id="btnDownloadAll" style="display:none;">打包下载全部 (ZIP)</button>
+      <button class="btn btn-ghost" id="btnSvg" style="display:none;">转 SVG</button>
     </div>
 
     <div class="postcard" id="postcard">
@@ -337,13 +369,6 @@
       <div class="status" id="svgStatus" role="status" aria-live="polite"></div>
     </div>
 
-    <div class="actions" id="actions">
-      <button class="btn btn-primary" id="btnDownload">下载当前 PNG</button>
-      <button class="btn btn-ghost" id="btnDownloadAll" style="display:none;">打包下载全部 (ZIP)</button>
-      <button class="btn btn-ghost" id="btnSvg" style="display:none;">转 SVG</button>
-      <button class="btn btn-ghost" id="btnEdit" style="display:none;">手动编辑</button>
-    </div>
-
     <ul class="note">
       <li><strong>首次使用：</strong>需联网下载模型和运行组件（约 50–210 MB，取决于模型），之后通常可通过浏览器缓存重复使用；缓存清除或首次使用 SVG 功能时可能需要重新联网。</li>
       <li><strong>流程：</strong>上传 → 预处理（可选）→ 去背景 → 后处理（尺寸/羽化/底色）→ 手动编辑 → 下载。</li>
@@ -380,6 +405,9 @@ const preHint = document.getElementById("preHint");
 const btnStart = document.getElementById("btnStart");
 const btnSkip = document.getElementById("btnSkip");
 const btnAll = document.getElementById("btnAll");
+const btnCancel = document.getElementById("btnCancel");
+const btnRetry = document.getElementById("btnRetry");
+const fileLimitEl = document.getElementById("fileLimit");
 const previewEl = document.getElementById("preview");
 const frameBefore = document.getElementById("frameBefore");
 const frameAfter = document.getElementById("frameAfter");
@@ -420,6 +448,12 @@ let items = [];
 let currentId = null;
 let busy = false;
 let resultUrl = null;
+let activeAbortController = null;
+let cancelRequested = false;
+
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGE_PIXELS = 40_000_000;
+const DEFAULT_FILE_LIMIT = "建议单张不超过 50 MB、4000 万像素";
 
 let preCanvas = null;
 let preCtx = null;
@@ -454,6 +488,34 @@ function setProgress(pct, label) {
   if (label) progressLabel.textContent = label;
 }
 
+function isCancellationError(error) {
+  return cancelRequested || error?.code === "CANCELLED" || error?.name === "AbortError";
+}
+
+function createCancellationError() {
+  const error = new Error("处理已取消");
+  error.code = "CANCELLED";
+  return error;
+}
+
+function setProcessingUi(show) {
+  btnCancel.style.display = show ? "inline-block" : "none";
+  btnCancel.disabled = false;
+}
+
+function cancelProcessing() {
+  if (!busy) return;
+  cancelRequested = true;
+  btnCancel.disabled = true;
+  setStatus("正在取消处理…");
+  if (activeAbortController) activeAbortController.abort();
+}
+
+function showFileNotice(message, kind = "") {
+  fileLimitEl.className = "file-limit" + (kind ? " " + kind : "");
+  fileLimitEl.textContent = message;
+}
+
 function cur() {
   return items.find((i) => i.id === currentId) || null;
 }
@@ -486,6 +548,7 @@ function resetAll() {
   editingCanvas = null; sourceCanvas = null; editCtx = null; sourceCtx = null;
   undoStack = [];
   fileInput.value = "";
+  showFileNotice(DEFAULT_FILE_LIMIT);
 }
 
 function loadImage(blob) {
@@ -493,18 +556,45 @@ function loadImage(blob) {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = reject;
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("图片无法读取")); };
     img.src = url;
   });
 }
 
-function handleFiles(fileList) {
+async function validateImageFile(file) {
+  if (file.size > MAX_FILE_BYTES) {
+    return "文件超过 50 MB";
+  }
+  try {
+    const img = await loadImage(file);
+    const pixels = img.naturalWidth * img.naturalHeight;
+    if (pixels > MAX_IMAGE_PIXELS) {
+      return "图片超过 4000 万像素（" + img.naturalWidth + " × " + img.naturalHeight + "）";
+    }
+  } catch (error) {
+    return "图片无法读取";
+  }
+  return "";
+}
+
+async function handleFiles(fileList) {
   const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
   if (!files.length) { setStatus("请选择图片文件（PNG / JPG / WEBP 等）", "error"); return; }
   if (busy) return;
   resetAll();
+  const validFiles = [];
+  const rejected = [];
+  for (const file of files) {
+    const reason = await validateImageFile(file);
+    if (reason) rejected.push(file.name + "：" + reason);
+    else validFiles.push(file);
+  }
+  if (!validFiles.length) {
+    showFileNotice("所选图片过大或无法读取，请压缩后重试。", "error");
+    return;
+  }
   const base = Date.now();
-  files.forEach((file, idx) => {
+  validFiles.forEach((file, idx) => {
     items.push({
       id: base + idx,
       file,
@@ -524,6 +614,10 @@ function handleFiles(fileList) {
   btnReset.onclick = resetAll;
   renderQueue();
   selectItem(items[0].id);
+  if (rejected.length) {
+    showFileNotice("已跳过 " + rejected.length + " 张超大或无法读取的图片。", "error");
+    preHint.textContent = rejected.join("；");
+  }
 }
 
 function renderQueue() {
@@ -562,6 +656,7 @@ function selectItem(id) {
   clearSvg();
   btnEdit.style.display = "none";
   btnSvg.style.display = "none";
+  btnRetry.style.display = "none";
   btnDownloadAll.style.display = items.some((i) => i.status === "done") ? "inline-block" : "none";
   if (resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = null;
@@ -577,12 +672,18 @@ function selectItem(id) {
     prePanel.classList.remove("show");
     progressWrap.classList.remove("show");
     showResultActions(item);
+  } else if (item.status === "error") {
+    progressWrap.classList.remove("show");
+    showPrePanel(item);
+    btnRetry.style.display = "inline-block";
+    preHint.textContent = "处理失败，可以点击「重试当前图片」重新处理。";
   }
 }
 
 function showPrePanel(item) {
   prePanel.classList.add("show");
   preItem = item;
+  preHint.textContent = "提示：点击「裁剪模式」后，在图片上拖动鼠标选择要保留的区域。";
   btnCropClear.style.display = item.crop ? "inline-block" : "none";
   preContrast.value = item.contrast;
   preContrastVal.textContent = item.contrast;
@@ -778,16 +879,21 @@ async function makeInputBlob(item) {
 }
 
 async function processItem(item, inputBlob) {
+  if (cancelRequested) throw createCancellationError();
   item.inputBlob = inputBlob;
   item.status = "processing";
   renderQueue();
   setProgress(0, "处理 " + item.name + " …");
   setStatus("首次使用需要下载模型文件，请耐心等待…");
 
+  const controller = new AbortController();
+  activeAbortController = controller;
+
   const cfg = {
     model: modelSel.value,
     device: gpuToggle.checked ? "gpu" : "cpu",
     output: { format: "image/png", type: "foreground" },
+    fetchArgs: { signal: controller.signal },
     progress: (key, current, total) => {
       const pct = total ? Math.round((current / total) * 100) : 0;
       if (key.startsWith("fetch:")) {
@@ -809,23 +915,29 @@ async function processItem(item, inputBlob) {
   };
 
   let result;
-  if (gpuToggle.checked && navigator.gpu) {
-    setStatus("正在使用 GPU（WebGPU）加速…");
-    try {
-      result = await tryRun("gpu");
-    } catch (e) {
-      console.warn("WebGPU 失败，回退到 CPU:", e);
+  try {
+    if (gpuToggle.checked && navigator.gpu) {
+      setStatus("正在使用 GPU（WebGPU）加速…");
+      try {
+        result = await tryRun("gpu");
+      } catch (e) {
+        if (isCancellationError(e)) throw e;
+        console.warn("WebGPU 失败，回退到 CPU:", e);
+        result = await tryRun("cpu");
+      }
+    } else {
       result = await tryRun("cpu");
     }
-  } else {
-    result = await tryRun("cpu");
-  }
-  item.resultBlob = result;
-  item.status = "done";
-  renderQueue();
-  btnDownloadAll.style.display = "inline-block";
-  if (item.id === currentId) {
-    selectItem(item.id);
+    if (cancelRequested) throw createCancellationError();
+    item.resultBlob = result;
+    item.status = "done";
+    renderQueue();
+    btnDownloadAll.style.display = "inline-block";
+    if (item.id === currentId) {
+      selectItem(item.id);
+    }
+  } finally {
+    if (activeAbortController === controller) activeAbortController = null;
   }
 }
 
@@ -837,18 +949,24 @@ async function startCurrent() {
   dropzone.classList.add("busy");
   prePanel.classList.remove("show");
   progressWrap.classList.add("show");
+  setProcessingUi(true);
+  let cancelled = false;
   try {
     const blob = await makeInputBlob(item);
     await processItem(item, blob);
   } catch (e) {
-    item.status = "error";
+    cancelled = isCancellationError(e);
+    item.status = cancelled ? "queued" : "error";
     renderQueue();
     console.error(e);
-    setStatus("处理失败：" + (e && e.message ? e.message : "未知错误") + "。请检查网络后重试。", "error");
+    if (!cancelled) setStatus("处理失败：" + (e && e.message ? e.message : "未知错误") + "。请点击「重试当前图片」。", "error");
   } finally {
     busy = false;
     dropzone.classList.remove("busy");
+    setProcessingUi(false);
     if (currentId) selectItem(currentId);
+    if (cancelled) preHint.textContent = "处理已取消，可以重新开始。";
+    cancelRequested = false;
   }
 }
 
@@ -868,18 +986,24 @@ async function startCurrentSkip(blob) {
   dropzone.classList.add("busy");
   prePanel.classList.remove("show");
   progressWrap.classList.add("show");
+  setProcessingUi(true);
+  let cancelled = false;
   try {
     item.inputBlob = blob;
     await processItem(item, blob);
   } catch (e) {
-    item.status = "error";
+    cancelled = isCancellationError(e);
+    item.status = cancelled ? "queued" : "error";
     renderQueue();
     console.error(e);
-    setStatus("处理失败：" + (e && e.message ? e.message : "未知错误") + "。请检查网络后重试。", "error");
+    if (!cancelled) setStatus("处理失败：" + (e && e.message ? e.message : "未知错误") + "。请点击「重试当前图片」。", "error");
   } finally {
     busy = false;
     dropzone.classList.remove("busy");
+    setProcessingUi(false);
     if (currentId) selectItem(currentId);
+    if (cancelled) preHint.textContent = "处理已取消，可以重新开始。";
+    cancelRequested = false;
   }
 }
 
@@ -891,8 +1015,11 @@ btnAll.onclick = async () => {
   dropzone.classList.add("busy");
   prePanel.classList.remove("show");
   progressWrap.classList.add("show");
+  setProcessingUi(true);
   let failedCount = 0;
+  let cancelled = false;
   for (const item of queued) {
+    if (cancelRequested) { cancelled = true; break; }
     if (item.status !== "queued") continue;
     currentId = item.id;
     renderQueue();
@@ -900,6 +1027,12 @@ btnAll.onclick = async () => {
       const blob = await makeInputBlob(item);
       await processItem(item, blob);
     } catch (e) {
+      if (isCancellationError(e)) {
+        item.status = "queued";
+        cancelled = true;
+        renderQueue();
+        break;
+      }
       item.status = "error";
       failedCount++;
       renderQueue();
@@ -908,13 +1041,23 @@ btnAll.onclick = async () => {
   }
   busy = false;
   dropzone.classList.remove("busy");
+  setProcessingUi(false);
   const doneCount = items.filter((i) => i.status === "done").length;
-  setProgress(100, failedCount ? "处理完成（部分失败）" : "全部处理完成");
-  setStatus(
-    failedCount ? "已完成 " + doneCount + " 张，失败 " + failedCount + " 张。" : "全部处理完成，共 " + doneCount + " 张。",
-    failedCount ? "error" : "ok"
-  );
+  setProgress(100, cancelled ? "处理已取消" : failedCount ? "处理完成（部分失败）" : "全部处理完成");
   if (currentId) selectItem(currentId);
+  if (cancelled) preHint.textContent = "批量处理已取消，剩余图片仍可继续处理。";
+  else if (failedCount) preHint.textContent = "已完成 " + doneCount + " 张，失败 " + failedCount + " 张；请选择失败图片重试。";
+  cancelRequested = false;
+};
+
+btnCancel.onclick = cancelProcessing;
+btnRetry.onclick = () => {
+  const item = cur();
+  if (!item || item.status !== "error" || busy) return;
+  item.status = "queued";
+  renderQueue();
+  selectItem(item.id);
+  startCurrent();
 };
 
 function showResultActions(item) {
